@@ -1,0 +1,51 @@
+spring:
+  application:
+    name: fintech-payment-ledger
+  datasource:
+    url: jdbc:h2:mem:ledger;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1
+    username: sa
+    password:
+  flyway:
+    locations: classpath:db/migration/common
+  h2:
+    console:
+      enabled: true
+      path: /dev/h2-console
+  jackson:
+    default-property-inclusion: non_null
+
+server:
+  error:
+    include-message: never
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+ledger:
+  security:
+    user-name: ${LEDGER_USER_NAME:wallet-user}
+    user-password: ${LEDGER_USER_PASSWORD:wallet-demo}
+    admin-name: ${LEDGER_ADMIN_NAME:ledger-admin}
+    admin-password: ${LEDGER_ADMIN_PASSWORD:admin-demo}
+  provider:
+    webhook-secret: ${PROVIDER_WEBHOOK_SECRET:local-demo-secret}
+    timestamp-tolerance-seconds: 300
+  fx:
+    quote-ttl-seconds: 60
+    fee-basis-points: 20
+    rates:
+      GBP-EUR: 1.1700000000
+      EUR-GBP: 0.8547000000
+      GBP-USD: 1.2900000000
+      USD-GBP: 0.7752000000
+
+logging:
+  pattern:
+    level: "%5p [traceId=%X{traceId:-}]"

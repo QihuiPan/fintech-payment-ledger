@@ -1,0 +1,35 @@
+services:
+  database:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ledger
+      POSTGRES_USER: ${DATABASE_USERNAME:-ledger}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-ledger-local-password}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USERNAME:-ledger} -d ledger"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    volumes:
+      - ledger-data:/var/lib/postgresql/data
+
+  app:
+    build: .
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: postgres
+      DATABASE_URL: jdbc:postgresql://database:5432/ledger
+      DATABASE_USERNAME: ${DATABASE_USERNAME:-ledger}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:-ledger-local-password}
+      LEDGER_USER_NAME: ${LEDGER_USER_NAME:-wallet-user}
+      LEDGER_USER_PASSWORD: ${LEDGER_USER_PASSWORD:-wallet-demo}
+      LEDGER_ADMIN_NAME: ${LEDGER_ADMIN_NAME:-ledger-admin}
+      LEDGER_ADMIN_PASSWORD: ${LEDGER_ADMIN_PASSWORD:-admin-demo}
+      PROVIDER_WEBHOOK_SECRET: ${PROVIDER_WEBHOOK_SECRET:-local-demo-secret}
+    ports:
+      - "8080:8080"
+
+volumes:
+  ledger-data:

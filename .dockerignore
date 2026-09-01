@@ -1,0 +1,10 @@
+.git
+.github
+.idea
+.vscode
+.env
+target
+web/node_modules
+web/dist
+work
+*.log

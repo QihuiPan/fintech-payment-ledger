@@ -1,0 +1,10 @@
+spring:
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/ledger}
+    username: ${DATABASE_USERNAME:ledger}
+    password: ${DATABASE_PASSWORD:ledger}
+  flyway:
+    locations: classpath:db/migration/common,classpath:db/migration/postgresql
+  h2:
+    console:
+      enabled: false

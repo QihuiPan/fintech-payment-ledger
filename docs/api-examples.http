@@ -1,0 +1,109 @@
+@baseUrl = http://localhost:8080
+@userAuth = Basic wallet-user:wallet-demo
+@adminAuth = Basic ledger-admin:admin-demo
+@walletId = replace-with-wallet-id
+@recipientWalletId = replace-with-recipient-wallet-id
+@transactionId = replace-with-transaction-id
+@quoteId = replace-with-quote-id
+
+### Health
+GET {{baseUrl}}/actuator/health
+
+### Create a wallet
+POST {{baseUrl}}/api/wallets
+Authorization: {{userAuth}}
+Content-Type: application/json
+
+{
+  "email": "alex@example.com",
+  "currencies": ["GBP", "EUR", "USD"]
+}
+
+### Deposit funds
+POST {{baseUrl}}/api/deposits
+Authorization: {{userAuth}}
+Idempotency-Key: demo-deposit-001
+Content-Type: application/json
+
+{
+  "walletId": "{{walletId}}",
+  "currency": "GBP",
+  "amountMinor": 10000,
+  "providerReference": "settlement-001"
+}
+
+### Transfer funds
+POST {{baseUrl}}/api/transfers
+Authorization: {{userAuth}}
+Idempotency-Key: demo-transfer-001
+Content-Type: application/json
+
+{
+  "senderWalletId": "{{walletId}}",
+  "recipientWalletId": "{{recipientWalletId}}",
+  "currency": "GBP",
+  "amountMinor": 2500
+}
+
+### Request an FX quote
+POST {{baseUrl}}/api/fx/quotes
+Authorization: {{userAuth}}
+Content-Type: application/json
+
+{
+  "walletId": "{{walletId}}",
+  "baseCurrency": "GBP",
+  "quoteCurrency": "EUR",
+  "baseAmountMinor": 1000
+}
+
+### Execute an FX quote
+POST {{baseUrl}}/api/conversions
+Authorization: {{userAuth}}
+Idempotency-Key: demo-conversion-001
+Content-Type: application/json
+
+{
+  "quoteId": "{{quoteId}}"
+}
+
+### Reverse a transaction
+POST {{baseUrl}}/api/transactions/{{transactionId}}/reversals
+Authorization: {{userAuth}}
+Idempotency-Key: demo-reversal-001
+Content-Type: application/json
+
+{
+  "reason": "Customer-requested correction"
+}
+
+### Read balances
+GET {{baseUrl}}/api/wallets/{{walletId}}/balances
+Authorization: {{userAuth}}
+
+### Read the GBP statement
+GET {{baseUrl}}/api/wallets/{{walletId}}/statement?currency=GBP&limit=50
+Authorization: {{userAuth}}
+
+### Check ledger invariants
+GET {{baseUrl}}/api/admin/invariants
+Authorization: {{adminAuth}}
+
+### Run reconciliation
+POST {{baseUrl}}/api/admin/reconciliation/run
+Authorization: {{adminAuth}}
+X-Audit-Reason: Daily settlement control
+Content-Type: application/json
+
+{
+  "businessDate": "2026-09-02",
+  "settlements": [
+    {
+      "providerReference": "settlement-001",
+      "currency": "GBP",
+      "amountMinor": 10000,
+      "status": "SETTLED",
+      "settledAt": "2026-09-02T08:00:00Z"
+    }
+  ]
+}

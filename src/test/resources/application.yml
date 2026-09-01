@@ -1,0 +1,23 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:ledger-${random.uuid};MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1
+  flyway:
+    locations: classpath:db/migration/common
+
+ledger:
+  security:
+    user-name: wallet-user
+    user-password: wallet-demo
+    admin-name: ledger-admin
+    admin-password: admin-demo
+  provider:
+    webhook-secret: local-demo-secret
+    timestamp-tolerance-seconds: 300
+  fx:
+    quote-ttl-seconds: 60
+    fee-basis-points: 20
+    rates:
+      GBP-EUR: 1.1700000000
+      EUR-GBP: 0.8547000000
+      GBP-USD: 1.2900000000
+      USD-GBP: 0.7752000000

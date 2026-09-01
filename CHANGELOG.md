@@ -8,7 +8,7 @@ Every behavior, API, schema, security, operations, or user-interface change must
 
 ### Changed
 
-- Reserved for the next change.
+- Upgraded GitHub Actions to maintained Node.js 24-based releases after the first successful CI run reported deprecation annotations.
 
 ## 0.2.0 - 2026-09-02
 

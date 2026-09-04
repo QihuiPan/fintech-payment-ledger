@@ -8,6 +8,7 @@ Every behavior, API, schema, security, operations, or user-interface change must
 
 ### Changed
 
+- Changed repository visibility to public on 2026-09-04 at the owner's request after reviewing tracked files and commit history for unintended disclosure.
 - Upgraded GitHub Actions to maintained Node.js 24-based releases after the first successful CI run reported deprecation annotations.
 
 ## 0.2.0 - 2026-09-02

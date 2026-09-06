@@ -52,15 +52,32 @@ public class LedgerRepository {
 
     public void insertWallet(WalletRow wallet) {
         jdbc.update(
-                "INSERT INTO wallets(id, user_id, status, created_at) VALUES (?, ?, ?, ?)",
-                wallet.id(), wallet.userId(), wallet.status(), dbTime(wallet.createdAt()));
+                "INSERT INTO wallets(id, user_id, owner_subject, status, created_at) VALUES (?, ?, ?, ?, ?)",
+                wallet.id(), wallet.userId(), wallet.ownerSubject(), wallet.status(), dbTime(wallet.createdAt()));
     }
 
     public Optional<WalletRow> findWallet(UUID walletId) {
         return optional(jdbc.query(
-                "SELECT id, user_id, status, created_at FROM wallets WHERE id = ?",
+                "SELECT id, user_id, owner_subject, status, created_at FROM wallets WHERE id = ?",
                 WALLET_MAPPER,
                 walletId));
+    }
+
+    public Optional<String> findWalletOwnerSubject(UUID walletId) {
+        return optional(jdbc.query(
+                "SELECT owner_subject FROM wallets WHERE id = ?",
+                (rs, ignored) -> rs.getString("owner_subject"),
+                walletId));
+    }
+
+    public int assignLegacyOwnership(String ownerSubject) {
+        int wallets = jdbc.update(
+                "UPDATE wallets SET owner_subject = ? WHERE owner_subject = 'legacy'",
+                ownerSubject);
+        int transactions = jdbc.update(
+                "UPDATE ledger_transactions SET initiated_by = ? WHERE initiated_by = 'legacy'",
+                ownerSubject);
+        return wallets + transactions;
     }
 
     public String findWalletEmail(UUID walletId) {
@@ -156,7 +173,7 @@ public class LedgerRepository {
     public Optional<TransactionRow> findTransactionByIdempotencyKey(String key) {
         return optional(jdbc.query("""
                 SELECT id, transaction_type, status, reference, idempotency_key,
-                       request_fingerprint, reverses_transaction_id, metadata_json, created_at
+                       request_fingerprint, initiated_by, reverses_transaction_id, metadata_json, created_at
                   FROM ledger_transactions WHERE idempotency_key = ?
                 """, TRANSACTION_MAPPER, key));
     }
@@ -164,7 +181,7 @@ public class LedgerRepository {
     public Optional<TransactionRow> findTransaction(UUID transactionId) {
         return optional(jdbc.query("""
                 SELECT id, transaction_type, status, reference, idempotency_key,
-                       request_fingerprint, reverses_transaction_id, metadata_json, created_at
+                       request_fingerprint, initiated_by, reverses_transaction_id, metadata_json, created_at
                   FROM ledger_transactions WHERE id = ?
                 """, TRANSACTION_MAPPER, transactionId));
     }
@@ -172,7 +189,7 @@ public class LedgerRepository {
     public Optional<TransactionRow> findTransactionByReference(String reference) {
         return optional(jdbc.query("""
                 SELECT id, transaction_type, status, reference, idempotency_key,
-                       request_fingerprint, reverses_transaction_id, metadata_json, created_at
+                       request_fingerprint, initiated_by, reverses_transaction_id, metadata_json, created_at
                   FROM ledger_transactions WHERE reference = ?
                 """, TRANSACTION_MAPPER, reference));
     }
@@ -180,7 +197,7 @@ public class LedgerRepository {
     public Optional<TransactionRow> findReversalOf(UUID transactionId) {
         return optional(jdbc.query("""
                 SELECT id, transaction_type, status, reference, idempotency_key,
-                       request_fingerprint, reverses_transaction_id, metadata_json, created_at
+                       request_fingerprint, initiated_by, reverses_transaction_id, metadata_json, created_at
                   FROM ledger_transactions WHERE reverses_transaction_id = ?
                 """, TRANSACTION_MAPPER, transactionId));
     }
@@ -189,11 +206,11 @@ public class LedgerRepository {
         jdbc.update("""
                 INSERT INTO ledger_transactions(
                     id, transaction_type, status, reference, idempotency_key,
-                    request_fingerprint, reverses_transaction_id, metadata_json, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    request_fingerprint, initiated_by, reverses_transaction_id, metadata_json, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 transaction.id(), transaction.type().name(), transaction.status(), transaction.reference(),
-                transaction.idempotencyKey(), transaction.requestFingerprint(),
+                transaction.idempotencyKey(), transaction.requestFingerprint(), transaction.initiatedBy(),
                 transaction.reversesTransactionId(), transaction.metadataJson(),
                 dbTime(transaction.createdAt()));
     }
@@ -338,6 +355,13 @@ public class LedgerRepository {
                        quote_amount_minor, fee_minor, rate, expires_at, consumed_at, created_at
                   FROM fx_quotes WHERE id = ? FOR UPDATE
                 """, FX_QUOTE_MAPPER, quoteId));
+    }
+
+    public Optional<UUID> findQuoteWalletId(UUID quoteId) {
+        return optional(jdbc.query(
+                "SELECT wallet_id FROM fx_quotes WHERE id = ?",
+                (rs, ignored) -> rs.getObject("wallet_id", UUID.class),
+                quoteId));
     }
 
     public void markQuoteConsumed(UUID quoteId, Instant consumedAt) {
@@ -513,6 +537,7 @@ public class LedgerRepository {
     private static final RowMapper<WalletRow> WALLET_MAPPER = (rs, ignored) -> new WalletRow(
             rs.getObject("id", UUID.class),
             rs.getObject("user_id", UUID.class),
+            rs.getString("owner_subject"),
             rs.getString("status"),
             instant(rs, "created_at"));
 
@@ -535,6 +560,7 @@ public class LedgerRepository {
                     rs.getString("reference"),
                     rs.getString("idempotency_key"),
                     rs.getString("request_fingerprint"),
+                    rs.getString("initiated_by"),
                     nullableUuid(rs, "reverses_transaction_id"),
                     rs.getString("metadata_json"),
                     instant(rs, "created_at"));
@@ -616,7 +642,7 @@ public class LedgerRepository {
             Instant createdAt) {
     }
 
-    public record WalletRow(UUID id, UUID userId, String status, Instant createdAt) {
+    public record WalletRow(UUID id, UUID userId, String ownerSubject, String status, Instant createdAt) {
     }
 
     public record AccountRow(
@@ -638,6 +664,7 @@ public class LedgerRepository {
             String reference,
             String idempotencyKey,
             String requestFingerprint,
+            String initiatedBy,
             UUID reversesTransactionId,
             String metadataJson,
             Instant createdAt) {

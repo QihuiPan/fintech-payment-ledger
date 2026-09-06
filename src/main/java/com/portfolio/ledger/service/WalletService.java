@@ -25,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class WalletService {
+    private static final String SYSTEM_SUBJECT = "system";
     private final LedgerRepository repository;
     private final Clock clock = Clock.systemUTC();
 
@@ -34,7 +35,13 @@ public class WalletService {
 
     @Transactional
     public WalletView create(String email, List<String> requestedCurrencies) {
+        return create(email, requestedCurrencies, SYSTEM_SUBJECT);
+    }
+
+    @Transactional
+    public WalletView create(String email, List<String> requestedCurrencies, String ownerSubject) {
         String normalizedEmail = email.trim().toLowerCase(Locale.ROOT);
+        String normalizedOwnerSubject = requireOwnerSubject(ownerSubject);
         LinkedHashSet<String> currencies = new LinkedHashSet<>();
         requestedCurrencies.forEach(currency -> currencies.add(LedgerMath.normalizeCurrency(currency)));
         if (currencies.isEmpty()) {
@@ -54,7 +61,8 @@ public class WalletService {
                     "The user must be active with approved KYC status");
         }
 
-        WalletRow wallet = new WalletRow(UUID.randomUUID(), user.id(), "ACTIVE", now);
+        WalletRow wallet = new WalletRow(
+                UUID.randomUUID(), user.id(), normalizedOwnerSubject, "ACTIVE", now);
         repository.insertWallet(wallet);
         for (String currency : currencies) {
             repository.insertAccount(new AccountRow(
@@ -114,5 +122,15 @@ public class WalletService {
     public WalletRow requireWallet(UUID walletId) {
         return repository.findWallet(walletId)
                 .orElseThrow(() -> DomainException.notFound("WALLET_NOT_FOUND", "Wallet does not exist"));
+    }
+
+    private static String requireOwnerSubject(String ownerSubject) {
+        String normalized = ownerSubject == null ? "" : ownerSubject.trim();
+        if (normalized.isEmpty() || normalized.length() > 160) {
+            throw DomainException.badRequest(
+                    "INVALID_OWNER_SUBJECT",
+                    "Authenticated subject must contain between 1 and 160 characters");
+        }
+        return normalized;
     }
 }

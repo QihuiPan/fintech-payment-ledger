@@ -15,14 +15,14 @@ The protected assets are ledger correctness, wallet balances, provider credentia
 | Webhook forgery | HMAC-SHA256 over timestamp and raw body, constant-time comparison | Rotate secrets, use a secret manager, and allow overlapping keys during rotation |
 | Webhook replay | Five-minute timestamp window, unique provider event ID, payload hash | Alert on repeated IDs with changed hashes and rate-limit at the edge |
 | Oversized webhook denial of service | 64 KiB application limit | Enforce a smaller request-body limit at the reverse proxy before buffering |
-| Brute-force authentication | Per-address API rate limit | Replace Basic auth with OIDC, MFA for operators, edge throttling, and lockout telemetry |
-| Cross-wallet access | UUID identifiers reduce guessing | Add tenant-scoped claims and enforce wallet ownership on every user route |
+| Brute-force authentication | Bounded per-subject or per-address API and webhook rate limits | Replace Basic auth with OIDC, MFA for operators, edge throttling, and lockout telemetry |
+| Cross-wallet access | Subject ownership checks on every wallet, quote, and transaction route | Derive subjects from signed identity-provider claims and add authorization regression tests for every new route |
 | Privileged misuse | Administrator role, required reconciliation reason, audit records | Use least-privilege roles, dual approval for adjustments, and immutable external audit storage |
-| Secret disclosure | Environment-variable configuration and ignored `.env` | Use managed secrets, automatic rotation, and secret scanning in CI |
+| Secret disclosure | Environment-variable configuration, ignored `.env`, and production startup rejection of demo secrets | Use managed secrets, automatic rotation, and secret scanning in CI |
 | Sensitive log leakage | API errors omit internal exception details | Add structured redaction tests and avoid logging raw provider payloads |
 | Outbox backlog | Durable outbox records and invariant count | Add a broker relay, retry policy, dead-letter queue, and age-based alert |
 | Multi-worker event race | Provider and ledger uniqueness constraints stop duplicate commits | Claim inbox rows atomically with `FOR UPDATE SKIP LOCKED` |
 
 ## Known MVP boundaries
 
-The bundled authentication is suitable only for a local portfolio demonstration. The application has no user enrollment, KYC, AML, sanctions screening, payout approval, encryption-key management, regional privacy workflow, or regulated data-retention policy. Deploying it as a financial service requires those product and governance controls in addition to engineering hardening.
+The bundled authentication is suitable for evaluation and small private self-hosting, not independent public end users. The application has no user enrollment, KYC, AML, sanctions screening, payout approval, encryption-key management, regional privacy workflow, or regulated data-retention policy. Deploying it as a financial service requires those product and governance controls in addition to engineering hardening.

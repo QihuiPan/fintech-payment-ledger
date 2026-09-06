@@ -6,8 +6,23 @@ Every behavior, API, schema, security, operations, or user-interface change must
 
 ## Unreleased
 
+## 0.3.0 - 2026-09-07
+
+### Added
+
+- Added authenticated-subject ownership for wallets and initiated transactions, administrator overrides, legacy-resource assignment, and service and HTTP integration coverage.
+- Added a one-click demo workspace that creates two wallets, funds the owner, fills the transfer destination, and displays signed ledger entries.
+- Added a production Compose overlay, application and database health checks, configurable PostgreSQL connection pooling, and a hardened read-only application container.
+- Added a complete OpenAPI 3.1 contract, deployment guide, security policy, PostgreSQL startup and container build verification, dependency update configuration, and multi-architecture GitHub Container Registry publishing.
+- Added QEMU-backed container publishing for AMD64 and ARM64 hosts.
+- Added Flyway indexes for wallet ownership, foreign keys, FX lookup, and the unpublished outbox queue.
+
 ### Changed
 
+- Raised console text and control sizes, made administrator credentials configurable in the interface, and improved non-JSON API error handling.
+- Restricted the H2 console to an explicit local profile, bound the demo stack to loopback, and made the PostgreSQL profile reject documented, placeholder, or undersized secrets.
+- Restricted Actuator metrics to administrators, applied bounded rate limiting to provider webhooks, and documented TLS, backup, identity, and rollback requirements.
+- Promoted the application version to `0.3.0` and made the default Compose stack compatible with a prebuilt GHCR image.
 - Changed repository visibility to public on 2026-09-04 at the owner's request after reviewing tracked files and commit history for unintended disclosure.
 - Upgraded GitHub Actions to maintained Node.js 24-based releases after the first successful CI run reported deprecation annotations.
 

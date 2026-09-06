@@ -19,7 +19,7 @@ import type { Credentials, FxQuote, Invariants, StatementPage, Transaction, Wall
 type Notice = { tone: "success" | "error" | "info"; message: string };
 
 const userCredentials: Credentials = { username: "wallet-user", password: "wallet-demo" };
-const adminCredentials: Credentials = { username: "ledger-admin", password: "admin-demo" };
+const defaultAdminCredentials: Credentials = { username: "ledger-admin", password: "admin-demo" };
 
 function minorValue(value: string): number {
   const amount = Number(value);
@@ -42,6 +42,7 @@ function shortId(value: string): string {
 
 function App() {
   const [credentials, setCredentials] = useState(userCredentials);
+  const [adminCredentials, setAdminCredentials] = useState(defaultAdminCredentials);
   const [walletId, setWalletId] = useState("");
   const [wallet, setWallet] = useState<Wallet>();
   const [statement, setStatement] = useState<StatementPage>();
@@ -117,6 +118,49 @@ function App() {
       setInvariants(result);
       return result;
     });
+  }
+
+  async function createDemoWorkspace() {
+    const suffix = crypto.randomUUID().slice(0, 8);
+    const result = await execute("Demo workspace setup", async () => {
+      const [owner, recipient] = await Promise.all([
+        apiRequest<Wallet>("/api/wallets", credentials, {
+          method: "POST",
+          body: { email: `owner-${suffix}@example.com`, currencies: ["GBP", "EUR", "USD"] },
+        }),
+        apiRequest<Wallet>("/api/wallets", credentials, {
+          method: "POST",
+          body: { email: `recipient-${suffix}@example.com`, currencies: ["GBP", "EUR"] },
+        }),
+      ]);
+      const deposit = await apiRequest<Transaction>("/api/deposits", credentials, {
+        method: "POST",
+        headers: { "Idempotency-Key": idempotencyKey("demo-deposit") },
+        body: {
+          walletId: owner.walletId,
+          currency: "GBP",
+          amountMinor: 10_000,
+          providerReference: `demo-seed-${suffix}`,
+        },
+      });
+      const [fundedOwner, ownerStatement] = await Promise.all([
+        apiRequest<Wallet>(`/api/wallets/${owner.walletId}/balances`, credentials),
+        apiRequest<StatementPage>(
+          `/api/wallets/${owner.walletId}/statement?currency=GBP&limit=50`,
+          credentials,
+        ),
+      ]);
+      return { owner: fundedOwner, recipient, deposit, ownerStatement };
+    });
+    if (result) {
+      setWallet(result.owner);
+      setWalletId(result.owner.walletId);
+      setRecipientWalletId(result.recipient.walletId);
+      setStatement(result.ownerStatement);
+      setStatementCurrency("GBP");
+      setLastTransaction(result.deposit);
+      setReversalTransactionId(result.deposit.transactionId);
+    }
   }
 
   async function handleCreateWallet(event: FormEvent) {
@@ -244,7 +288,7 @@ function App() {
       <main>
         <header className="topbar">
           <div>
-            <p className="eyebrow">Payment infrastructure portfolio</p>
+            <p className="eyebrow">Self-hosted payment infrastructure</p>
             <h1>Ledger operations</h1>
           </div>
           <div className={`health ${apiOnline === true ? "online" : apiOnline === false ? "offline" : "checking"}`}>
@@ -267,7 +311,10 @@ function App() {
         <section id="overview" className="workspace-section">
           <div className="section-heading">
             <div><p className="eyebrow">Account position</p><h2>Wallet overview</h2></div>
-            <button className="secondary" type="button" onClick={() => loadWallet()} disabled={busy}><RefreshCw size={16} /> Refresh</button>
+            <div className="heading-actions">
+              <button type="button" onClick={createDemoWorkspace} disabled={busy}><Plus size={16} /> Create demo workspace</button>
+              <button className="secondary" type="button" onClick={() => loadWallet()} disabled={busy}><RefreshCw size={16} /> Refresh</button>
+            </div>
           </div>
 
           <div className="overview-grid">
@@ -328,6 +375,28 @@ function App() {
               <button className="danger" disabled={busy}><Undo2 size={16} /> Post reversal</button>
             </form>
           </div>
+          {lastTransaction && (
+            <div className="transaction-panel" aria-live="polite">
+              <div className="transaction-summary">
+                <div><span>Latest transaction</span><strong>{lastTransaction.type.replaceAll("_", " ")}</strong></div>
+                <div><span>Status</span><strong>{lastTransaction.status}</strong></div>
+                <div><span>Reference</span><code>{lastTransaction.reference}</code></div>
+                <div><span>Transaction ID</span><code>{lastTransaction.transactionId}</code></div>
+              </div>
+              <div className="table-wrap">
+                <table>
+                  <thead><tr><th>Account</th><th>Currency</th><th className="numeric">Signed amount</th></tr></thead>
+                  <tbody>{lastTransaction.entries.map((entry) => (
+                    <tr key={entry.entryId}>
+                      <td><code>{entry.accountCode}</code></td>
+                      <td>{entry.currency}</td>
+                      <td className={`numeric ${entry.amountMinor < 0 ? "negative" : "positive"}`}>{formatMoney(entry.amountMinor, entry.currency)}</td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </section>
 
         <section id="foreign-exchange" className="workspace-section">
@@ -362,6 +431,15 @@ function App() {
             <div><span>Last transaction</span><code title={lastTransaction?.transactionId}>{lastTransaction ? shortId(lastTransaction.transactionId) : "—"}</code></div>
           </div>
 
+          <div className="admin-access">
+            <div>
+              <p className="eyebrow">Administrator access</p>
+              <p>Invariant checks use separate administrator credentials.</p>
+            </div>
+            <label><span>Admin user</span><input value={adminCredentials.username} onChange={(event) => setAdminCredentials({ ...adminCredentials, username: event.target.value })} /></label>
+            <label><span>Admin password</span><input type="password" value={adminCredentials.password} onChange={(event) => setAdminCredentials({ ...adminCredentials, password: event.target.value })} /></label>
+          </div>
+
           <div className="statement-panel">
             <div className="statement-toolbar">
               <div><p className="eyebrow">Running balance</p><h3>Wallet statement</h3></div>
@@ -383,7 +461,7 @@ function App() {
           </div>
         </section>
 
-        <footer>Demo credentials are local defaults only. Change every secret before deployment.</footer>
+        <footer>Local demo credentials are enabled only for evaluation. Production startup rejects them.</footer>
       </main>
     </div>
   );

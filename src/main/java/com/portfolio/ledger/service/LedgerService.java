@@ -99,6 +99,7 @@ public class LedgerService {
                 command.reference(),
                 command.idempotencyKey(),
                 command.requestFingerprint(),
+                command.initiatedBy(),
                 command.reversesTransactionId(),
                 json(command.metadata()),
                 now));
@@ -146,6 +147,7 @@ public class LedgerService {
             String reference,
             String idempotencyKey,
             String requestFingerprint,
+            String initiatedBy,
             UUID reversesTransactionId,
             Map<String, Object> metadata,
             List<Posting> postings) {

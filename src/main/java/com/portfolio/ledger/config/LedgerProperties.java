@@ -15,7 +15,8 @@ public record LedgerProperties(
             String userName,
             String userPassword,
             String adminName,
-            String adminPassword) {
+            String adminPassword,
+            boolean requireStrongCredentials) {
     }
 
     public record Provider(

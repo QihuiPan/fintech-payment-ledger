@@ -24,6 +24,7 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()))
                 .authorizeHttpRequests(authorize -> authorize
+                        .requestMatchers("/actuator/metrics/**", "/actuator/prometheus").hasRole("ADMIN")
                         .requestMatchers("/actuator/health/**", "/actuator/info", "/dev/h2-console/**")
                         .permitAll()
                         .requestMatchers("/api/provider/webhooks").permitAll()

@@ -32,9 +32,19 @@ export async function apiRequest<T>(
   });
 
   const text = await response.text();
-  const payload = text ? JSON.parse(text) : undefined;
+  let payload: unknown;
+  try {
+    payload = text ? JSON.parse(text) : undefined;
+  } catch {
+    payload = undefined;
+  }
   if (!response.ok) {
-    throw new ApiError(payload?.message ?? `Request failed with status ${response.status}`, response.status, payload?.code);
+    const error = payload as { message?: string; code?: string } | undefined;
+    throw new ApiError(
+      error?.message ?? (text || `Request failed with status ${response.status}`),
+      response.status,
+      error?.code,
+    );
   }
   return payload as T;
 }

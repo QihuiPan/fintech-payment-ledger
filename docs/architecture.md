@@ -17,7 +17,7 @@ flowchart LR
 | Component | Responsibility | Failure boundary |
 | --- | --- | --- |
 | React console | Demonstrates supported wallet and operations flows | Contains no authoritative financial state |
-| API controllers | Validate transport input and apply role checks | Reject malformed or unauthorized requests before services |
+| API controllers | Validate transport input and apply role and resource-ownership checks | Reject malformed or unauthorized requests before services |
 | Payment services | Define posting rules, idempotency, FX consumption, and reversals | A database transaction encloses every posting |
 | Ledger service | Validates entries, locks accounts in stable order, and commits entries, balances, and outbox | Any invariant failure rolls back the whole posting |
 | JDBC repository | Executes explicit SQL and maps durable records | Database constraints are the final guard |
@@ -55,6 +55,12 @@ Accounts are locked with `SELECT ... FOR UPDATE` in sorted UUID order. A transfe
 
 The idempotency record is the ledger transaction itself: the key is unique and stores a SHA-256 request fingerprint. A matching retry returns the durable result. A different fingerprint returns a conflict.
 
+## Authorization model
+
+Every wallet stores the authenticated subject that created it, and every posted transaction stores its initiating subject. Normal API users can read or mutate only their wallets, quotes, and initiated transactions. Transfers authorize the sender wallet while allowing the recipient wallet to belong to another subject. Administrators can inspect all resources and run privileged controls.
+
+The bundled identity directory is in memory and configured through environment variables. Resource ownership is deliberately separate from the wallet customer's email: the API subject is the caller, while the email is domain data associated with the wallet owner.
+
 ## Database enforcement
 
 The common Flyway migration supports H2 and PostgreSQL. The PostgreSQL-only migration adds:
@@ -67,4 +73,4 @@ Service checks provide precise API errors. Database constraints protect against 
 
 ## Scaling path
 
-The portfolio MVP intentionally runs the provider worker in the API process. A production deployment would claim inbox rows with `FOR UPDATE SKIP LOCKED`, run workers independently, publish the outbox to a broker, use tenant-scoped authorization, and partition high-volume entry and audit tables by time or account hash. None of those changes require changing the accounting model.
+The reference deployment intentionally runs the provider worker in the API process. A high-availability deployment would claim inbox rows with `FOR UPDATE SKIP LOCKED`, run workers independently, publish the outbox to a broker, map external identity-provider claims to API subjects, and partition high-volume entry and audit tables by time or account hash. None of those changes require changing the accounting model.

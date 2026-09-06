@@ -1,6 +1,7 @@
 services:
   database:
     image: postgres:17-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_DB: ledger
       POSTGRES_USER: ${DATABASE_USERNAME:-ledger}
@@ -12,14 +13,17 @@ services:
       retries: 10
     volumes:
       - ledger-data:/var/lib/postgresql/data
+    stop_grace_period: 30s
 
   app:
+    image: ghcr.io/qihuipan/fintech-payment-ledger:latest
     build: .
+    restart: unless-stopped
     depends_on:
       database:
         condition: service_healthy
     environment:
-      SPRING_PROFILES_ACTIVE: postgres
+      SPRING_PROFILES_ACTIVE: postgres,demo
       DATABASE_URL: jdbc:postgresql://database:5432/ledger
       DATABASE_USERNAME: ${DATABASE_USERNAME:-ledger}
       DATABASE_PASSWORD: ${DATABASE_PASSWORD:-ledger-local-password}
@@ -28,8 +32,21 @@ services:
       LEDGER_ADMIN_NAME: ${LEDGER_ADMIN_NAME:-ledger-admin}
       LEDGER_ADMIN_PASSWORD: ${LEDGER_ADMIN_PASSWORD:-admin-demo}
       PROVIDER_WEBHOOK_SECRET: ${PROVIDER_WEBHOOK_SECRET:-local-demo-secret}
+      DATABASE_POOL_SIZE: ${DATABASE_POOL_SIZE:-10}
     ports:
-      - "8080:8080"
+      - "127.0.0.1:${APP_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8080/actuator/health/readiness || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 30s
 
 volumes:
   ledger-data:

@@ -40,3 +40,61 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Build console
         run: pnpm build
+
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - name: Build deployable image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: false
+          tags: fintech-payment-ledger:ci
+
+  postgres-smoke:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: ledger
+          POSTGRES_USER: ledger
+          POSTGRES_PASSWORD: ci-database-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ledger -d ledger"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: jdbc:postgresql://localhost:5432/ledger
+      DATABASE_USERNAME: ledger
+      DATABASE_PASSWORD: ci-database-password
+      LEDGER_USER_NAME: ci-wallet-user
+      LEDGER_USER_PASSWORD: ci-wallet-password
+      LEDGER_ADMIN_NAME: ci-ledger-admin
+      LEDGER_ADMIN_PASSWORD: ci-admin-password
+      PROVIDER_WEBHOOK_SECRET: ci-provider-webhook-secret
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: Package API
+        run: ./mvnw --batch-mode -DskipTests package
+      - name: Verify PostgreSQL migrations and readiness
+        run: |
+          java -jar target/fintech-payment-ledger-*.jar --spring.profiles.active=postgres --server.port=18080 > app.log 2>&1 &
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://localhost:18080/actuator/health/readiness > /dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat app.log
+          exit 1

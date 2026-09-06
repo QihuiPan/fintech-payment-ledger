@@ -33,6 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class PaymentService {
+    private static final String SYSTEM_SUBJECT = "system";
     private final LedgerRepository repository;
     private final LedgerService ledgerService;
     private final WalletService walletService;
@@ -63,14 +64,26 @@ public class PaymentService {
             long amountMinor,
             String providerReference,
             String idempotencyKey) {
+        return deposit(walletId, currency, amountMinor, providerReference, idempotencyKey, SYSTEM_SUBJECT);
+    }
+
+    @Transactional
+    public TransactionView deposit(
+            UUID walletId,
+            String currency,
+            long amountMinor,
+            String providerReference,
+            String idempotencyKey,
+            String initiatedBy) {
         String key = requireIdempotencyKey(idempotencyKey);
+        String subject = requireSubject(initiatedBy);
         return idempotencyLocks.withLock(key, () -> {
             requirePositive(amountMinor);
             String normalizedCurrency = LedgerMath.normalizeCurrency(currency);
             String reference = requireReference(providerReference);
             String fingerprint = CryptoSupport.fingerprint(
                     "DEPOSIT", walletId, normalizedCurrency, amountMinor, reference);
-            Optional<TransactionView> replay = replay(key, fingerprint);
+            Optional<TransactionView> replay = replay(key, fingerprint, subject);
             if (replay.isPresent()) {
                 return replay.get();
             }
@@ -85,6 +98,7 @@ public class PaymentService {
                     reference,
                     key,
                     fingerprint,
+                    subject,
                     null,
                     Map.of("walletId", walletId, "providerReference", reference),
                     List.of(
@@ -100,7 +114,20 @@ public class PaymentService {
             String currency,
             long amountMinor,
             String idempotencyKey) {
+        return transfer(
+                senderWalletId, recipientWalletId, currency, amountMinor, idempotencyKey, SYSTEM_SUBJECT);
+    }
+
+    @Transactional
+    public TransactionView transfer(
+            UUID senderWalletId,
+            UUID recipientWalletId,
+            String currency,
+            long amountMinor,
+            String idempotencyKey,
+            String initiatedBy) {
         String key = requireIdempotencyKey(idempotencyKey);
+        String subject = requireSubject(initiatedBy);
         return idempotencyLocks.withLock(key, () -> {
             requirePositive(amountMinor);
             if (senderWalletId.equals(recipientWalletId)) {
@@ -111,7 +138,7 @@ public class PaymentService {
             String normalizedCurrency = LedgerMath.normalizeCurrency(currency);
             String fingerprint = CryptoSupport.fingerprint(
                     "TRANSFER", senderWalletId, recipientWalletId, normalizedCurrency, amountMinor);
-            Optional<TransactionView> replay = replay(key, fingerprint);
+            Optional<TransactionView> replay = replay(key, fingerprint, subject);
             if (replay.isPresent()) {
                 return replay.get();
             }
@@ -122,6 +149,7 @@ public class PaymentService {
                     "transfer:" + UUID.randomUUID(),
                     key,
                     fingerprint,
+                    subject,
                     null,
                     Map.of("senderWalletId", senderWalletId, "recipientWalletId", recipientWalletId),
                     List.of(
@@ -177,10 +205,16 @@ public class PaymentService {
 
     @Transactional
     public TransactionView convert(UUID quoteId, String idempotencyKey) {
+        return convert(quoteId, idempotencyKey, SYSTEM_SUBJECT);
+    }
+
+    @Transactional
+    public TransactionView convert(UUID quoteId, String idempotencyKey, String initiatedBy) {
         String key = requireIdempotencyKey(idempotencyKey);
+        String subject = requireSubject(initiatedBy);
         return idempotencyLocks.withLock(key, () -> {
             String fingerprint = CryptoSupport.fingerprint("FX_CONVERSION", quoteId);
-            Optional<TransactionView> replay = replay(key, fingerprint);
+            Optional<TransactionView> replay = replay(key, fingerprint, subject);
             if (replay.isPresent()) {
                 return replay.get();
             }
@@ -223,6 +257,7 @@ public class PaymentService {
                     "fx:" + quote.id(),
                     key,
                     fingerprint,
+                    subject,
                     null,
                     Map.of("quoteId", quote.id(), "rate", quote.rate()),
                     List.of(
@@ -236,12 +271,22 @@ public class PaymentService {
 
     @Transactional
     public TransactionView reverse(UUID originalTransactionId, String reason, String idempotencyKey) {
+        return reverse(originalTransactionId, reason, idempotencyKey, SYSTEM_SUBJECT);
+    }
+
+    @Transactional
+    public TransactionView reverse(
+            UUID originalTransactionId,
+            String reason,
+            String idempotencyKey,
+            String initiatedBy) {
         String key = requireIdempotencyKey(idempotencyKey);
+        String subject = requireSubject(initiatedBy);
         return idempotencyLocks.withLock(key, () -> {
             String normalizedReason = requireReason(reason);
             String fingerprint = CryptoSupport.fingerprint(
                     "REVERSAL", originalTransactionId, normalizedReason);
-            Optional<TransactionView> replay = replay(key, fingerprint);
+            Optional<TransactionView> replay = replay(key, fingerprint, subject);
             if (replay.isPresent()) {
                 return replay.get();
             }
@@ -267,6 +312,7 @@ public class PaymentService {
                     "reversal:" + original.id(),
                     key,
                     fingerprint,
+                    subject,
                     original.id(),
                     Map.of("reason", normalizedReason, "originalReference", original.reference()),
                     opposite));
@@ -281,12 +327,13 @@ public class PaymentService {
         return repository.transactionView(transactionId);
     }
 
-    private Optional<TransactionView> replay(String key, String fingerprint) {
+    private Optional<TransactionView> replay(String key, String fingerprint, String initiatedBy) {
         Optional<TransactionRow> existing = repository.findTransactionByIdempotencyKey(key);
         if (existing.isEmpty()) {
             return Optional.empty();
         }
-        if (!existing.get().requestFingerprint().equals(fingerprint)) {
+        if (!existing.get().requestFingerprint().equals(fingerprint)
+                || !existing.get().initiatedBy().equals(initiatedBy)) {
             throw DomainException.conflict(
                     "IDEMPOTENCY_KEY_REUSED",
                     "The idempotency key was already used with a different request payload");
@@ -301,6 +348,16 @@ public class PaymentService {
             throw DomainException.badRequest(
                     "INVALID_IDEMPOTENCY_KEY",
                     "Idempotency-Key must contain between 1 and 128 characters");
+        }
+        return normalized;
+    }
+
+    private static String requireSubject(String subject) {
+        String normalized = subject == null ? "" : subject.trim();
+        if (normalized.isEmpty() || normalized.length() > 160) {
+            throw DomainException.badRequest(
+                    "INVALID_INITIATOR_SUBJECT",
+                    "Authenticated subject must contain between 1 and 160 characters");
         }
         return normalized;
     }

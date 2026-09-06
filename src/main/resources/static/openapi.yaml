@@ -1,0 +1,752 @@
+openapi: 3.1.0
+info:
+  title: FinTech Payment Ledger API
+  version: 0.3.0
+  description: >-
+    Self-hosted append-only, double-entry wallet and payment ledger. Monetary
+    values are signed integer minor units. Every money-moving request requires
+    an Idempotency-Key header.
+  license:
+    name: MIT
+    identifier: MIT
+servers:
+  - url: /
+    description: Current ledger host
+tags:
+  - name: Wallets
+    description: Wallet creation, balances, and statements
+  - name: Payments
+    description: Deposits, transfers, foreign exchange, and reversals
+  - name: Provider
+    description: Signed provider webhook ingestion
+  - name: Administration
+    description: Reconciliation, audit, and invariant controls
+security:
+  - basicAuth: []
+paths:
+  /api/wallets:
+    post:
+      tags: [Wallets]
+      summary: Create a wallet
+      operationId: createWallet
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateWalletRequest"
+      responses:
+        "201":
+          description: Wallet created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Wallet"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/wallets/{walletId}/balances:
+    get:
+      tags: [Wallets]
+      summary: Read wallet balances
+      operationId: getWalletBalances
+      parameters:
+        - $ref: "#/components/parameters/WalletId"
+      responses:
+        "200":
+          description: Wallet and currency balances
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Wallet"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/wallets/{walletId}/statement:
+    get:
+      tags: [Wallets]
+      summary: Read a running wallet statement
+      operationId: getWalletStatement
+      parameters:
+        - $ref: "#/components/parameters/WalletId"
+        - name: currency
+          in: query
+          required: true
+          schema:
+            $ref: "#/components/schemas/Currency"
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        "200":
+          description: Newest-first statement page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatementPage"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/deposits:
+    post:
+      tags: [Payments]
+      summary: Post a deposit
+      operationId: createDeposit
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DepositRequest"
+      responses:
+        "201":
+          description: Posted deposit transaction
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/transfers:
+    post:
+      tags: [Payments]
+      summary: Transfer funds between wallets
+      operationId: createTransfer
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransferRequest"
+      responses:
+        "201":
+          description: Posted transfer transaction
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/fx/quotes:
+    post:
+      tags: [Payments]
+      summary: Create an executable FX quote
+      operationId: createFxQuote
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FxQuoteRequest"
+      responses:
+        "201":
+          description: Short-lived quote
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FxQuote"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/conversions:
+    post:
+      tags: [Payments]
+      summary: Consume an FX quote
+      operationId: createConversion
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [quoteId]
+              properties:
+                quoteId:
+                  type: string
+                  format: uuid
+      responses:
+        "201":
+          description: Posted multi-currency transaction
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/transactions/{transactionId}:
+    get:
+      tags: [Payments]
+      summary: Read a transaction and its entries
+      operationId: getTransaction
+      parameters:
+        - $ref: "#/components/parameters/TransactionId"
+      responses:
+        "200":
+          description: Transaction detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/transactions/{transactionId}/reversals:
+    post:
+      tags: [Payments]
+      summary: Post a compensating reversal
+      operationId: reverseTransaction
+      parameters:
+        - $ref: "#/components/parameters/TransactionId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+                  minLength: 3
+                  maxLength: 500
+      responses:
+        "201":
+          description: Posted reversal transaction
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/provider/webhooks:
+    post:
+      tags: [Provider]
+      summary: Accept a signed provider event
+      operationId: receiveProviderWebhook
+      security: []
+      parameters:
+        - name: X-Provider-Event-Id
+          in: header
+          required: true
+          schema:
+            type: string
+            maxLength: 160
+        - name: X-Provider-Timestamp
+          in: header
+          required: true
+          schema:
+            type: string
+            description: Unix timestamp in seconds
+        - name: X-Provider-Signature
+          in: header
+          required: true
+          schema:
+            type: string
+            description: sha256-prefixed HMAC over timestamp dot raw body
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProviderEvent"
+      responses:
+        "202":
+          description: Event accepted or recognized as a duplicate
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [providerEventId, status]
+                properties:
+                  providerEventId:
+                    type: string
+                  status:
+                    type: string
+                    enum: [RECEIVED, DUPLICATE]
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/admin/invariants:
+    get:
+      tags: [Administration]
+      summary: Check ledger invariants and outbox backlog
+      operationId: getInvariants
+      responses:
+        "200":
+          description: Current invariant counters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invariants"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/admin/reconciliation/run:
+    post:
+      tags: [Administration]
+      summary: Reconcile provider settlements
+      operationId: runReconciliation
+      parameters:
+        - name: X-Audit-Reason
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReconciliationRequest"
+      responses:
+        "200":
+          description: Reconciliation result and persisted exceptions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReconciliationResult"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/admin/reconciliation/{businessDate}/report.csv:
+    get:
+      tags: [Administration]
+      summary: Download a reconciliation CSV report
+      operationId: downloadReconciliationReport
+      parameters:
+        - name: businessDate
+          in: path
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Reconciliation report
+          content:
+            text/csv:
+              schema:
+                type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/admin/audit-logs:
+    get:
+      tags: [Administration]
+      summary: Read privileged-operation audit records
+      operationId: getAuditLogs
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 200
+      responses:
+        "200":
+          description: Newest-first audit records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AuditLog"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+components:
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+  parameters:
+    WalletId:
+      name: walletId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    TransactionId:
+      name: transactionId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+    Unauthorized:
+      description: Authentication is required or invalid
+    Forbidden:
+      description: The authenticated subject cannot access the resource
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+    Conflict:
+      description: Idempotency, balance, quote, or ledger constraint conflict
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+  schemas:
+    Currency:
+      type: string
+      pattern: "^[A-Z]{3}$"
+      examples: [GBP]
+    CreateWalletRequest:
+      type: object
+      required: [email, currencies]
+      properties:
+        email:
+          type: string
+          format: email
+        currencies:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/Currency"
+    DepositRequest:
+      type: object
+      required: [walletId, currency, amountMinor, providerReference]
+      properties:
+        walletId:
+          type: string
+          format: uuid
+        currency:
+          $ref: "#/components/schemas/Currency"
+        amountMinor:
+          type: integer
+          format: int64
+          minimum: 1
+        providerReference:
+          type: string
+          minLength: 1
+          maxLength: 160
+    TransferRequest:
+      type: object
+      required: [senderWalletId, recipientWalletId, currency, amountMinor]
+      properties:
+        senderWalletId:
+          type: string
+          format: uuid
+        recipientWalletId:
+          type: string
+          format: uuid
+        currency:
+          $ref: "#/components/schemas/Currency"
+        amountMinor:
+          type: integer
+          format: int64
+          minimum: 1
+    FxQuoteRequest:
+      type: object
+      required: [walletId, baseCurrency, quoteCurrency, baseAmountMinor]
+      properties:
+        walletId:
+          type: string
+          format: uuid
+        baseCurrency:
+          $ref: "#/components/schemas/Currency"
+        quoteCurrency:
+          $ref: "#/components/schemas/Currency"
+        baseAmountMinor:
+          type: integer
+          format: int64
+          minimum: 1
+    Balance:
+      type: object
+      required: [accountId, currency, postedBalanceMinor, availableBalanceMinor, version]
+      properties:
+        accountId:
+          type: string
+          format: uuid
+        currency:
+          $ref: "#/components/schemas/Currency"
+        postedBalanceMinor:
+          type: integer
+          format: int64
+        availableBalanceMinor:
+          type: integer
+          format: int64
+        version:
+          type: integer
+          format: int64
+    Wallet:
+      type: object
+      required: [walletId, userId, email, status, balances]
+      properties:
+        walletId:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        status:
+          type: string
+        balances:
+          type: array
+          items:
+            $ref: "#/components/schemas/Balance"
+    Entry:
+      type: object
+      required: [entryId, accountId, accountCode, currency, amountMinor]
+      properties:
+        entryId:
+          type: string
+          format: uuid
+        accountId:
+          type: string
+          format: uuid
+        accountCode:
+          type: string
+        currency:
+          $ref: "#/components/schemas/Currency"
+        amountMinor:
+          type: integer
+          format: int64
+    Transaction:
+      type: object
+      required: [transactionId, type, status, reference, createdAt, entries]
+      properties:
+        transactionId:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [DEPOSIT, TRANSFER, FX_CONVERSION, REVERSAL]
+        status:
+          type: string
+          const: POSTED
+        reference:
+          type: string
+        reversesTransactionId:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+        entries:
+          type: array
+          minItems: 2
+          items:
+            $ref: "#/components/schemas/Entry"
+    FxQuote:
+      type: object
+      required: [quoteId, walletId, baseCurrency, quoteCurrency, baseAmountMinor, quoteAmountMinor, feeMinor, rate, expiresAt]
+      properties:
+        quoteId:
+          type: string
+          format: uuid
+        walletId:
+          type: string
+          format: uuid
+        baseCurrency:
+          $ref: "#/components/schemas/Currency"
+        quoteCurrency:
+          $ref: "#/components/schemas/Currency"
+        baseAmountMinor:
+          type: integer
+          format: int64
+        quoteAmountMinor:
+          type: integer
+          format: int64
+        feeMinor:
+          type: integer
+          format: int64
+        rate:
+          type: number
+        expiresAt:
+          type: string
+          format: date-time
+        consumedAt:
+          type: string
+          format: date-time
+    StatementItem:
+      type: object
+      required: [transactionId, type, reference, currency, amountMinor, runningBalanceMinor, createdAt]
+      properties:
+        transactionId:
+          type: string
+          format: uuid
+        type:
+          type: string
+        reference:
+          type: string
+        currency:
+          $ref: "#/components/schemas/Currency"
+        amountMinor:
+          type: integer
+          format: int64
+        runningBalanceMinor:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
+    StatementPage:
+      type: object
+      required: [walletId, currency, items]
+      properties:
+        walletId:
+          type: string
+          format: uuid
+        currency:
+          $ref: "#/components/schemas/Currency"
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/StatementItem"
+        nextCursor:
+          type: string
+    ProviderEvent:
+      type: object
+      required: [type, walletId, currency, amountMinor, providerReference]
+      properties:
+        type:
+          type: string
+          const: deposit.succeeded
+        walletId:
+          type: string
+          format: uuid
+        currency:
+          $ref: "#/components/schemas/Currency"
+        amountMinor:
+          type: integer
+          format: int64
+          minimum: 1
+        providerReference:
+          type: string
+    Invariants:
+      type: object
+      required: [unbalancedTransactionCount, negativeUserBalanceCount, unpublishedOutboxByType]
+      properties:
+        unbalancedTransactionCount:
+          type: integer
+          format: int64
+        negativeUserBalanceCount:
+          type: integer
+          format: int64
+        unpublishedOutboxByType:
+          type: object
+          additionalProperties:
+            type: integer
+            format: int64
+    ReconciliationRequest:
+      type: object
+      required: [businessDate]
+      properties:
+        businessDate:
+          type: string
+          format: date
+        settlements:
+          type: array
+          items:
+            type: object
+            required: [providerReference, currency, amountMinor, status, settledAt]
+            properties:
+              providerReference:
+                type: string
+              currency:
+                $ref: "#/components/schemas/Currency"
+              amountMinor:
+                type: integer
+                format: int64
+              status:
+                type: string
+              settledAt:
+                type: string
+                format: date-time
+    ReconciliationResult:
+      type: object
+      additionalProperties: true
+    AuditLog:
+      type: object
+      additionalProperties: true
+    ApiError:
+      type: object
+      required: [code, message, path, timestamp]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        path:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        fields:
+          type: object
+          additionalProperties:
+            type: string

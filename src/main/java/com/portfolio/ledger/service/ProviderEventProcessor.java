@@ -27,7 +27,8 @@ public class ProviderEventProcessor {
                 event.currency(),
                 event.amountMinor(),
                 event.providerReference(),
-                "provider:" + event.providerEventId());
+                "provider:" + event.providerEventId(),
+                "provider-webhook");
         repository.markProviderEvent(event.providerEventId(), "PROCESSED", null, Instant.now(clock));
     }
 }

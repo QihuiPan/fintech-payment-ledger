@@ -53,3 +53,5 @@ Every behavior, API, schema, security, operations, or user-interface change must
 - Added opt-in authenticated OpenTelemetry traces/logs and bounded SLO metrics with exact latency buckets.
 - Included a pinned Java agent and platform onboarding instructions.
 - Validation is recorded by the integration branch CI; no production diagnosis or throughput claims are made.
+
+- Emit bounded request-completion logs inside the active trace context for metrics-to-trace-to-log navigation.

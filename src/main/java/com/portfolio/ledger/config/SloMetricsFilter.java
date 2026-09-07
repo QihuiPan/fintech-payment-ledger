@@ -16,6 +16,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 /** Exposes bounded SLO metrics for completed valid HTTP requests. */
 @Component
 public class SloMetricsFilter extends OncePerRequestFilter {
+    private static final org.slf4j.Logger LOGGER = org.slf4j.LoggerFactory.getLogger(SloMetricsFilter.class);
     private final Counter good;
     private final Counter bad;
     private final Timer latency;
@@ -50,6 +51,7 @@ public class SloMetricsFilter extends OncePerRequestFilter {
             if (status < 400 || status >= 500) {
                 (status >= 500 ? bad : good).increment();
                 latency.record(System.nanoTime() - started, java.util.concurrent.TimeUnit.NANOSECONDS);
+                LOGGER.info("HTTP request completed status={} duration_ms={}", status, (System.nanoTime() - started) / 1000000);
             }
         }
     }

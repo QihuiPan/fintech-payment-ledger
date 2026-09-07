@@ -1,6 +1,7 @@
 services:
   app:
     environment:
+      OBSERVE_EXEMPLARS_ENABLED: "true"
       JAVA_TOOL_OPTIONS: -javaagent:/app/opentelemetry-javaagent.jar
       OTEL_SERVICE_NAME: ledger-worker
       OTEL_RESOURCE_ATTRIBUTES: service.version=0.3.0,deployment.environment=demo,cloud.region=local,tenant=team-payments

@@ -1,0 +1,13 @@
+services:
+  app:
+    environment:
+      JAVA_TOOL_OPTIONS: -javaagent:/app/opentelemetry-javaagent.jar
+      OTEL_SERVICE_NAME: ledger-worker
+      OTEL_RESOURCE_ATTRIBUTES: service.version=0.3.0,deployment.environment=demo,cloud.region=local,tenant=team-payments
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OBSERVE_OTLP_ENDPOINT:?Set the authenticated platform gateway URL}
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      OTEL_EXPORTER_OTLP_HEADERS: ${OBSERVE_OTLP_HEADERS:?Set Authorization=Bearer%20TOKEN}
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_LOGS_EXPORTER: otlp
+      OTEL_METRICS_EXPORTER: none
+      MANAGEMENT_TRACING_ENABLED: 'false'

@@ -55,3 +55,4 @@ Every behavior, API, schema, security, operations, or user-interface change must
 - Validation is recorded by the integration branch CI; no production diagnosis or throughput claims are made.
 
 - Emit bounded request-completion logs inside the active trace context for metrics-to-trace-to-log navigation.
+- Connect Prometheus exemplars to the Java-agent span and verify trace IDs in OpenMetrics output.

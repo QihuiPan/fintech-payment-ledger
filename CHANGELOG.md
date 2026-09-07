@@ -47,3 +47,11 @@ Every behavior, API, schema, security, operations, or user-interface change must
 - Added wallet creation, deposits, transfers, fixed-precision FX quotes and conversions, reversals, and running statements.
 - Added request-fingerprint idempotency, signed provider webhooks, duplicate delivery handling, reconciliation, audit logs, outbox storage, metrics, and rate limiting.
 - Added PostgreSQL mutation guards and eight automated tests, including concurrent-spend and randomized-invariant coverage.
+
+## Observability integration - 2026-09-07
+
+- Added opt-in authenticated OpenTelemetry traces/logs and bounded SLO metrics with exact latency buckets.
+- Included a pinned Java agent and platform onboarding instructions.
+- Validation is recorded by the integration branch CI; no production diagnosis or throughput claims are made.
+
+- Emit bounded request-completion logs inside the active trace context for metrics-to-trace-to-log navigation.

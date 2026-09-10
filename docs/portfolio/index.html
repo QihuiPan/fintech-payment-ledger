@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Qihui Pan's engineering portfolio: a self-hosted payment ledger with double-entry accounting, retry-safe operations, concurrent-spend controls, and source-linked verification.">
+  <meta name="theme-color" content="#102cfa">
+  <title>Qihui Pan | FinTech Payment Ledger</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="masthead wrap">
+    <a class="wordmark" href="#main">Qihui Pan<span>Engineering portfolio</span></a>
+    <nav aria-label="Case study navigation">
+      <a href="#approach">Approach</a><a href="#evidence">Evidence</a><a href="#try">Try it</a>
+      <a class="nav-source" href="https://github.com/QihuiPan/fintech-payment-ledger">GitHub <span aria-hidden="true">↗</span></a>
+    </nav>
+  </header>
+  <main id="main">
+    <section class="hero wrap" aria-labelledby="title">
+      <div class="hero-copy">
+        <p class="eyebrow">Selected project / 01</p>
+        <h1 id="title">Every movement.<br>Accounted for.</h1>
+        <h2 class="project-name">FinTech Payment Ledger</h2>
+        <p class="lead">A self-hosted wallet and payment system that makes money movement explainable, repeatable, and auditable.</p>
+        <p class="hero-detail">Java 21 · Spring Boot · PostgreSQL · React · TypeScript</p>
+        <div class="actions">
+          <a class="button" href="QihuiPan_FinTech_Ledger_Portfolio.pdf" download>Download portfolio PDF <span aria-hidden="true">↓</span></a>
+          <a class="text-link" href="https://github.com/QihuiPan/fintech-payment-ledger/releases/tag/v0.3.0">Explore the release <span aria-hidden="true">↗</span></a>
+        </div>
+      </div>
+      <figure class="ledger-figure">
+        <figcaption><span>Transfer / GBP 25.00</span><span class="figure-label">Illustrative posting</span></figcaption>
+        <div class="entry"><div><span class="entry-index">01</span><strong>Sender wallet</strong></div><span class="amount">−2,500</span></div>
+        <div class="entry"><div><span class="entry-index">02</span><strong>Recipient wallet</strong></div><span class="amount">+2,500</span></div>
+        <div class="zero-sum"><span>Sum per currency</span><strong>0</strong></div>
+        <p>Signed integer minor units. Balanced entries. One atomic commit.</p>
+      </figure>
+    </section>
+    <div class="facts wrap" aria-label="Verified release facts">
+      <div><strong>12</strong><span>Automated tests passed<br>v0.3.0 release baseline</span></div>
+      <div><strong>4</strong><span>CI jobs passed<br>Backend, web, database, image</span></div>
+      <div><strong>2</strong><span>Published architectures<br>AMD64 and ARM64</span></div>
+      <div><strong>1</strong><span>Command to start<br>Console, API and database</span></div>
+    </div>
+
+    <section id="approach" class="section wrap">
+      <div class="section-intro"><p class="eyebrow">01 / The engineering problem</p><h2>Correctness when<br>requests go wrong.</h2></div>
+      <div class="section-content">
+        <p class="large-copy">A payment request can arrive twice. Two transfers can compete for the same balance. A correction must preserve the original record.</p>
+        <p>This project models those failure cases around an append-only, double-entry ledger. The entry stream records each movement; balance snapshots provide fast reads and change within the same database transaction.</p>
+        <div class="decision-grid">
+          <article><span class="item-number">01</span><h3>Retries return the original result</h3><p>Persisted idempotency keys, normalized request fingerprints, and initiator checks reject conflicting reuse.</p></article>
+          <article><span class="item-number">02</span><h3>Spending follows the lock</h3><p>Account rows are locked in stable order. The available balance is checked after locking, before posting.</p></article>
+          <article><span class="item-number">03</span><h3>Corrections add evidence</h3><p>Reversals append opposite entries and link to the original transaction. PostgreSQL triggers reject mutation of posted records.</p></article>
+          <article><span class="item-number">04</span><h3>Currencies balance independently</h3><p>Integer minor units represent money. Fixed-precision FX quotes include a fee, an expiry, and one-time consumption.</p></article>
+        </div>
+        <a class="text-link" href="https://github.com/QihuiPan/fintech-payment-ledger/blob/v0.3.0/docs/accounting-model.md">Read the accounting model <span aria-hidden="true">↗</span></a>
+      </div>
+    </section>
+
+    <section class="architecture-band" aria-labelledby="architecture-title">
+      <div class="wrap">
+        <div class="band-heading"><div><p class="eyebrow">02 / System architecture</p><h2 id="architecture-title">One posting boundary.<br>Several layers of control.</h2></div><p>The React console displays state. The ledger service and database own financial correctness.</p></div>
+        <div class="architecture" aria-label="The console and signed provider events reach the API, then payment services and the ledger, which atomically commit to PostgreSQL.">
+          <div class="architecture-column"><div class="node"><span>Interaction</span><h3>React console</h3><p>Wallets, payments, FX and statements</p></div><div class="node"><span>External input</span><h3>Signed webhook</h3><p>Timestamp, HMAC and event identity</p></div></div>
+          <span class="flow-arrow" aria-hidden="true">→</span>
+          <div class="architecture-column"><div class="node"><span>Application</span><h3>Spring Boot API</h3><p>Validation, roles and resource ownership</p></div><div class="node"><span>Posting boundary</span><h3>Payment + ledger services</h3><p>Idempotency, row locks and invariants</p></div></div>
+          <span class="flow-arrow" aria-hidden="true">→</span>
+          <div class="node database"><span>Durable state</span><h3>PostgreSQL</h3><ul><li>Immutable entries</li><li>Balance projections</li><li>Transactional outbox</li><li>Provider inbox + audit records</li></ul><p class="commit-label">Entries, balances and outbox commit together.</p></div>
+        </div>
+        <div class="supporting-controls"><span>Reconciliation</span><span>Administrator invariants</span><span>Health and metrics</span><span>Flyway migrations</span></div>
+        <p class="architecture-note">The outbox is stored durably. An external broker relay is a future extension.</p>
+      </div>
+    </section>
+
+    <section class="section wrap" aria-labelledby="scope-title">
+      <div class="section-intro"><p class="eyebrow">03 / Implementation scope</p><h2 id="scope-title">From ledger rules<br>to a usable system.</h2></div>
+      <div class="section-content">
+        <div class="capability-list">
+          <article><span>Payments</span><h3>Wallets, deposits, transfers, FX and reversals</h3><p>Running statements and signed transaction entries make each operation inspectable.</p></article>
+          <article><span>Reliability</span><h3>Signed events and settlement reconciliation</h3><p>Provider event IDs and payload hashes detect duplicate delivery. Settlement exceptions are retained for investigation.</p></article>
+          <article><span>Access</span><h3>Subject ownership and administrator controls</h3><p>Wallet, quote and initiated-transaction access is checked against the caller. The bundled identity directory uses configurable Basic authentication.</p></article>
+          <article><span>Delivery</span><h3>One-command setup and multi-architecture images</h3><p>Docker Compose starts the console, API and PostgreSQL. A demo workspace seeds two wallets and a GBP 100.00 deposit.</p></article>
+          <article><span>Latest main</span><h3>Trace-linked operational telemetry</h3><p>Optional OpenTelemetry export connects HTTP and worker signals with request traces and Prometheus exemplars. Added after the v0.3.0 release.</p><a href="https://github.com/QihuiPan/fintech-payment-ledger/blob/c0edf44821ad6e35e7b0b93a3e53e2ddd566426b/docs/observability-platform.md">Inspect the integration <span aria-hidden="true">↗</span></a></article>
+        </div>
+      </div>
+    </section>
+
+    <section id="evidence" class="evidence-section wrap" aria-labelledby="evidence-title">
+      <div class="evidence-heading"><div><p class="eyebrow">04 / Verification</p><h2 id="evidence-title">Evidence you can inspect.</h2></div><p>Release checks refer to v0.3.0, commit <code>7e5b2f9</code>.<br>Portfolio reviewed 11 September 2026.</p></div>
+      <div class="evidence-table-wrap"><table class="evidence-table"><thead><tr><th scope="col">Scenario</th><th scope="col">Observed check</th><th scope="col">Evidence</th></tr></thead><tbody>
+        <tr><th scope="row">Retry the same deposit</th><td>Same transaction ID returned; a changed amount with the same key is rejected.</td><td><a href="https://github.com/QihuiPan/fintech-payment-ledger/blob/v0.3.0/src/test/java/com/portfolio/ledger/PaymentFlowIntegrationTest.java">Payment flow test ↗</a></td></tr>
+        <tr><th scope="row">Two spends against GBP 10.00</th><td>Two GBP 8.00 transfers compete. Exactly one succeeds; GBP 2.00 remains.</td><td><a href="https://github.com/QihuiPan/fintech-payment-ledger/blob/v0.3.0/src/test/java/com/portfolio/ledger/ConcurrentSpendIntegrationTest.java">Concurrent spend test ↗</a></td></tr>
+        <tr><th scope="row">Generate balanced postings</th><td>1,000 randomized balanced examples are accepted; an unbalanced currency leg is rejected.</td><td><a href="https://github.com/QihuiPan/fintech-payment-ledger/blob/v0.3.0/src/test/java/com/portfolio/ledger/domain/LedgerMathTest.java">Ledger math tests ↗</a></td></tr>
+        <tr><th scope="row">Cross-subject access</th><td>Ownership, administrator overrides, metrics access and disabled H2 console are covered.</td><td><a href="https://github.com/QihuiPan/fintech-payment-ledger/blob/v0.3.0/src/test/java/com/portfolio/ledger/ApiSecurityIntegrationTest.java">HTTP security test ↗</a></td></tr>
+        <tr><th scope="row">Build and start the release</th><td>Backend, frontend, PostgreSQL migration/readiness, and container build jobs passed.</td><td><a href="https://github.com/QihuiPan/fintech-payment-ledger/actions/runs/34045594508">Release CI run ↗</a></td></tr>
+        <tr><th scope="row">Publish both architectures</th><td>AMD64 and ARM64 container publishing succeeded for the version tag.</td><td><a href="https://github.com/QihuiPan/fintech-payment-ledger/actions/runs/34046058660">Container release run ↗</a></td></tr>
+      </tbody></table></div>
+      <p class="evidence-note">The core integration tests use H2; the PostgreSQL job verifies migration and application readiness. These checks do not establish a production throughput or availability benchmark.</p>
+    </section>
+
+    <section id="try" class="try-section wrap" aria-labelledby="try-title">
+      <div><p class="eyebrow">05 / Run the project</p><h2 id="try-title">Clone. Start. Inspect.</h2><p>With Docker and Compose v2 installed, start the full stack locally. Open <code>localhost:8080</code> and select <strong>Create demo workspace</strong>.</p><p>Then transfer funds, execute an FX quote, reverse a transaction, and inspect the statement and invariant check.</p><a class="text-link" href="https://github.com/QihuiPan/fintech-payment-ledger/blob/main/docs/deployment.md">Deployment guide <span aria-hidden="true">↗</span></a></div>
+      <div class="terminal"><div class="terminal-title">Quick start</div><pre><code>git clone https://github.com/QihuiPan/fintech-payment-ledger.git
+cd fintech-payment-ledger
+docker compose up --build --wait</code></pre><p>Public source · MIT license · Persistent PostgreSQL storage</p></div>
+    </section>
+    <section class="next-section wrap" aria-labelledby="next-title">
+      <p class="eyebrow">Engineering judgment</p><h2 id="next-title">The next production steps are explicit.</h2>
+      <p>This is a runnable engineering reference with a provider simulator. Independent public users would need external identity, regulated payment controls, a durable outbox relay, coordinated multi-worker processing, and measured load and recovery testing.</p>
+      <a class="text-link" href="https://github.com/QihuiPan/fintech-payment-ledger/blob/main/docs/threat-model.md">Review the documented boundaries <span aria-hidden="true">↗</span></a>
+    </section>
+  </main>
+  <footer class="footer wrap"><div><strong>Qihui Pan</strong><span>FinTech Payment Ledger / Engineering portfolio</span></div><a href="QihuiPan_FinTech_Ledger_Portfolio.pdf" download>Download PDF ↓</a><a href="https://github.com/QihuiPan">GitHub profile ↗</a></footer>
+</body>
+</html>

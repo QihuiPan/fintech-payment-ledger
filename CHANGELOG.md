@@ -6,6 +6,11 @@ Every behavior, API, schema, security, operations, or user-interface change must
 
 ## Unreleased
 
+### Added
+
+- Added an English engineering portfolio with a responsive standalone page and a four-page downloadable PDF, including architecture, accounting examples, source-linked verification, and a runnable demonstration guide.
+- Documented the distinction between the v0.3.0 verification baseline and later observability integration, and added the portfolio entry to the README.
+
 ## 0.3.0 - 2026-09-07
 
 ### Added

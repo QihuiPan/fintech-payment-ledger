@@ -143,6 +143,7 @@ The backend suite covers randomized balancing, replay and conflict semantics, su
 
 ## Documentation
 
+- [Engineering portfolio and downloadable PDF](docs/portfolio/README.md)
 - [Architecture](docs/architecture.md)
 - [Accounting model](docs/accounting-model.md)
 - [Threat model](docs/threat-model.md)
